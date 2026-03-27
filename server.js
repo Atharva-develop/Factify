@@ -205,7 +205,7 @@ function getNextKey() {
 
 // ── Gemini Model ──────────────────────────────────────────────────────────────
 // Using the stable v1beta model string — flash-lite preview tag required
-const GEMINI_MODEL = "gemini-2.5-flash-lite-preview-06-17";
+const GEMINI_MODEL = "gemini-2.5-flash-lite";
 const GEMINI_BASE  = "https://generativelanguage.googleapis.com/v1beta/models";
 
 // ── Health check ──────────────────────────────────────────────────────────────
