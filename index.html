@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Factify — AI Fake News Detector</title>
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+--accent: #00FFB2;
+--accent-glow: rgba(0,255,178,0.08);
+--bg: #050810;
+--bg2: #080E18;
+--bg3: #080B12;
+--border: #0E2030;
+--border2: #1A2040;
+--text: #C8E8FF;
+--muted: #5A9AAA;
+--mid: #7AAABB;
+--tab-h: 72px;
+    }
+html, body { height: 100%; }
+body { background: var(--bg); font-family: 'Courier New', Courier, monospace; color: var(--text); overflow-x: hidden; }
+/* ── TAB BAR ── */
+.tab-bar {
+position: fixed; bottom: 0; left: 0; right: 0;
+height: var(--tab-h); background: var(--bg3);
+border-top: 1px solid var(--border2);
+display: flex; z-index: 200;
+box-shadow: 0 -4px 24px rgba(125,249,255,0.08);
+    }
+.tab {
+flex: 1; display: flex; flex-direction: column;
+align-items: center; justify-content: center; gap: 4px;
+text-decoration: none; padding: 8px 0 12px; transition: opacity .2s;
+    }
+.tab:hover { opacity: .8; }
+.tab-icon-wrap { width: 40px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 8px; }
+.tab.active .tab-icon-wrap { background: rgba(125,249,255,.10); }
+.tab-icon { font-size: 19px; }
+.tab.active  .tab-icon  { color: #7DF9FF; }
+.tab:not(.active) .tab-icon { color: #3A4560; }
+.tab-label { font-size: 10px; letter-spacing: .8px; text-transform: uppercase; }
+.tab.active  .tab-label  { color: #7DF9FF; }
+.tab:not(.active) .tab-label { color: #3A4560; }
+/* ── SHELL ── */
+.shell { display: flex; min-height: 100vh; padding-bottom: var(--tab-h); }
+/* LEFT SIDEBAR */
+.sidebar {
+display: none;
+width: 230px; flex-shrink: 0;
+border-right: 1px solid var(--border2);
+padding: 44px 20px 40px;
+flex-direction: column; gap: 26px;
+position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    }
+@media(min-width:900px){ .sidebar { display: flex; } }
+@media(min-width:1280px){ .sidebar { width: 250px; } }
+/* MAIN */
+.main { flex: 1; min-width: 0; padding: 52px 32px 40px; }
+@media(min-width:900px){ .main { padding: 48px 40px 40px; } }
+/* RIGHT PANEL */
+.right-panel {
+display: none;
+width: 290px; flex-shrink: 0;
+border-left: 1px solid var(--border2);
+padding: 44px 20px 40px;
+flex-direction: column; gap: 20px;
+position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    }
+@media(min-width:1200px){ .right-panel { display: flex; } }
+@media(min-width:1400px){ .right-panel { width: 310px; } }
+/* ── SIDEBAR CONTENT ── */
+.sb-logo { display: flex; flex-direction: column; gap: 6px; }
+.sb-logo-name { font-size: 24px; font-weight: 900; color: #fff; letter-spacing: 6px; text-shadow: 0 0 18px var(--accent); }
+.sb-logo-sub { color: var(--accent); font-size: 9px; letter-spacing: 2px; }
+.sb-divider { height: 1px; background: var(--border2); flex-shrink: 0; }
+.sb-section { display: flex; flex-direction: column; gap: 10px; }
+.sb-section-label { font-size: 9px; color: var(--muted); letter-spacing: 2px; }
+.sb-nav { display: flex; flex-direction: column; gap: 4px; }
+.sb-nav-item {
+display: flex; align-items: center; gap: 10px;
+padding: 10px 12px; border-radius: 8px;
+text-decoration: none; color: var(--muted);
+font-size: 10px; letter-spacing: 1.5px;
+border: 1px solid transparent; transition: all .2s;
+    }
+.sb-nav-item.active { color: var(--accent); border-color: rgba(0,255,178,.2); background: var(--accent-glow); }
+.sb-nav-item:not(.active):hover { color: var(--mid); background: rgba(255,255,255,.02); }
+.sb-nav-icon { font-size: 14px; }
+.sb-stats { display: flex; flex-direction: column; gap: 8px; }
+.sb-stat {
+background: var(--bg2); border: 1px solid var(--border);
+border-radius: 8px; padding: 10px 12px;
+    }
+.sb-stat-label { font-size: 8px; color: var(--muted); letter-spacing: 1.5px; margin-bottom: 4px; }
+.sb-stat-value { font-size: 18px; font-weight: 900; color: var(--accent); letter-spacing: 1px; }
+.sb-stat-sub { font-size: 8px; color: var(--muted); letter-spacing: 1px; margin-top: 2px; }
+.sb-tips { display: flex; flex-direction: column; gap: 8px; }
+.sb-tip { font-size: 9px; color: var(--muted); line-height: 15px; letter-spacing: .5px; padding-left: 10px; border-left: 2px solid var(--border); }
+.sb-tip b { color: var(--accent); font-weight: normal; }
+/* ── RIGHT PANEL CONTENT ── */
+.rp-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.rp-title { font-size: 9px; color: var(--accent); letter-spacing: 2px; font-weight: 700; margin-bottom: 14px; }
+.vl-list { display: flex; flex-direction: column; gap: 10px; }
+.vl-item { display: flex; align-items: flex-start; gap: 10px; }
+.vl-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 3px; }
+.vl-label { font-size: 10px; letter-spacing: 1px; }
+.vl-sub { font-size: 8px; color: var(--muted); margin-top: 2px; letter-spacing: .5px; }
+.how-list { display: flex; flex-direction: column; gap: 12px; }
+.how-item { display: flex; gap: 10px; align-items: flex-start; }
+.how-num {
+width: 20px; height: 20px; border-radius: 4px; flex-shrink: 0;
+background: var(--accent-glow); border: 1px solid rgba(0,255,178,.2);
+display: flex; align-items: center; justify-content: center;
+font-size: 9px; font-weight: 900; color: var(--accent);
+    }
+.how-text { font-size: 10px; color: var(--muted); line-height: 16px; letter-spacing: .5px; }
+.mi-list { display: flex; flex-direction: column; gap: 8px; }
+.mi-row { display: flex; justify-content: space-between; align-items: center; }
+.mi-key { font-size: 9px; color: var(--muted); letter-spacing: 1px; }
+.mi-val { font-size: 9px; color: var(--text); letter-spacing: .5px; }
+.mi-badge { font-size: 8px; color: var(--accent); letter-spacing: 1px; border: 1px solid rgba(0,255,178,.3); padding: 2px 7px; border-radius: 4px; }
+.hist-list { display: flex; flex-direction: column; gap: 8px; }
+.hist-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.hist-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.hist-text { font-size: 9px; color: var(--muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hist-verdict { font-size: 8px; letter-spacing: 1px; font-weight: 700; flex-shrink: 0; }
+.hist-empty { font-size: 9px; color: var(--muted); letter-spacing: 1px; text-align: center; padding: 12px 0; }
+/* ── STATUS BAR ── */
+.status-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding: 0 4px; animation: fadeIn .9s ease; }
+.status-left { display: flex; align-items: center; gap: 8px; }
+.green-dot { width: 7px; height: 7px; border-radius: 50%; background: #00FF87; box-shadow: 0 0 8px #00FF87; }
+.status-text { color: var(--muted); font-size: 10px; letter-spacing: 2px; }
+.status-right { display: flex; align-items: center; gap: 14px; }
+.status-pill { font-size: 9px; color: var(--accent); letter-spacing: 1.5px; border: 1px solid rgba(0,255,178,.25); border-radius: 4px; padding: 3px 8px; }
+/* ── BRAND ── */
+.brand-block {
+text-align: center; padding: 32px 24px; margin: 0 4px;
+position: relative; animation: slideUp .9s cubic-bezier(.22,1,.36,1);
+    }
+.corner { position: absolute; width: 22px; height: 22px; border-color: var(--accent); border-style: solid; border-width: 0; }
+.corner-tl { top:0; left:0; border-top-width:2px; border-left-width:2px; }
+.corner-tr { top:0; right:0; border-top-width:2px; border-right-width:2px; }
+.corner-bl { bottom:0; left:0; border-bottom-width:2px; border-left-width:2px; }
+.corner-br { bottom:0; right:0; border-bottom-width:2px; border-right-width:2px; }
+.brand-eyebrow { color: var(--accent); font-size: 10px; letter-spacing: 2.5px; margin-bottom: 16px; }
+.brand-name { font-size: clamp(48px,6vw,72px); font-weight: 900; color: #fff; letter-spacing: 12px; text-shadow: 0 0 28px var(--accent); margin-bottom: 8px; }
+.brand-tagline { font-size: 13px; font-weight: 700; color: #A8D8FF; letter-spacing: 6px; margin-bottom: 16px; }
+.brand-underline { width: 80px; height: 2px; background: var(--accent); box-shadow: 0 0 10px var(--accent); margin: 0 auto 14px; }
+.brand-sub { color: var(--muted); font-size: 11px; letter-spacing: 1.5px; }
+/* ── GRID DIVIDER ── */
+.grid-divider { display: flex; align-items: center; margin: 24px 0; }
+.grid-line { flex: 1; height: 1px; background: #0E1E2C; }
+.grid-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin: 0 12px; box-shadow: 0 0 6px var(--accent); }
+/* ── INPUT / ANALYZE ROW ── */
+.input-analyze-row { display: flex; flex-direction: column; gap: 20px; }
+@media(min-width:900px){
+.input-analyze-row { flex-direction: row; align-items: flex-start; gap: 24px; }
+.input-section { flex: 1; min-width: 0; }
+.analyze-col { width: 230px; flex-shrink: 0; display: flex; flex-direction: column; gap: 14px; }
+    }
+/* ── INPUT ── */
+.input-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.section-label { color: var(--accent); font-size: 10px; letter-spacing: 2.5px; font-weight: 700; }
+.char-count { color: var(--muted); font-size: 11px; }
+.input-outer {
+background: var(--bg2); border-radius: 12px; border: 1px solid var(--border);
+overflow: hidden; min-height: 200px; position: relative; transition: border-color .2s;
+    }
+.input-outer:focus-within { border-color: rgba(0,255,178,.3); }
+.scan-line { position: absolute; left:0; right:0; height: 2px; background: rgba(0,255,178,.12); pointer-events: none; animation: scanMove 2.4s linear infinite; }
+@keyframes scanMove { 0%{ transform:translateY(0); } 100%{ transform:translateY(200px); } }
+textarea {
+width: 100%; min-height: 200px; padding: 16px;
+background: transparent; border: none; outline: none;
+color: var(--text); font-size: 14px; line-height: 22px;
+font-family: 'Courier New', monospace; resize: vertical; caret-color: var(--accent);
+    }
+textarea::placeholder { color: #2A4A5A; }
+.input-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; }
+.input-meta { font-size: 9px; color: #1A3A50; letter-spacing: 1px; }
+.clear-btn {
+border: 1px solid #1A2E40; border-radius: 8px; padding: 8px 14px;
+background: transparent; color: var(--muted); font-size: 10px;
+letter-spacing: 2px; font-family: 'Courier New', monospace; cursor: pointer; transition: all .2s;
+    }
+.clear-btn:hover { border-color: #2A4E60; color: var(--mid); }
+.clear-btn.hidden { display: none; }
+/* ── ANALYZE COL ── */
+.analyze-btn {
+width: 100%; padding: 18px; border-radius: 12px;
+border: 2px solid var(--accent); background: var(--accent);
+box-shadow: 0 4px 24px rgba(0,255,178,.38);
+cursor: pointer; display: flex; align-items: center; justify-content: center;
+gap: 10px; transition: all .2s; font-family: 'Courier New', monospace;
+    }
+.analyze-btn:not(:disabled):hover { box-shadow: 0 6px 32px rgba(0,255,178,.55); transform: translateY(-1px); }
+.analyze-btn:disabled { background: transparent; border-color: var(--border); box-shadow: none; cursor: not-allowed; }
+.btn-arrow { color: #050810; font-size: 14px; font-weight: 900; }
+.btn-text { color: #050810; font-size: 13px; font-weight: 900; letter-spacing: 3px; font-family: 'Courier New', monospace; }
+.analyze-btn:disabled .btn-arrow, .analyze-btn:disabled .btn-text { color: #0E2030; }
+.format-guide { border: 1px solid var(--border); border-radius: 10px; background: var(--bg2); padding: 14px; }
+.fg-title { font-size: 9px; color: var(--muted); letter-spacing: 2px; margin-bottom: 10px; }
+.fg-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.fg-icon { font-size: 12px; width: 18px; text-align: center; }
+.fg-text { font-size: 9px; color: var(--muted); }
+.quick-actions { display: flex; flex-direction: column; gap: 8px; }
+.qa-title { font-size: 9px; color: var(--muted); letter-spacing: 2px; }
+.qa-btn {
+width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+border-radius: 8px; background: var(--bg2); cursor: pointer;
+text-align: left; font-family: 'Courier New', monospace;
+color: var(--muted); font-size: 9px; letter-spacing: .5px;
+transition: all .2s; line-height: 14px;
+    }
+.qa-btn:hover { border-color: rgba(0,255,178,.3); color: var(--accent); }
+.qa-btn-label { color: var(--accent); font-weight: 700; display: block; margin-bottom: 3px; font-size: 8px; letter-spacing: 2px; }
+/* ── RESULT CARD ── */
+.result-card {
+margin-top: 28px; border-radius: 14px; border: 1.5px solid;
+overflow: hidden; display: none;
+animation: resultIn .6s cubic-bezier(.22,1,.36,1) forwards;
+    }
+@keyframes resultIn { from{opacity:0;transform:translateY(30px);} to{opacity:1;transform:translateY(0);} }
+.result-header { padding: 14px 20px; }
+.result-header-text { color: #050810; font-size: 13px; font-weight: 900; letter-spacing: 2px; }
+.result-body { padding: 20px; }
+@media(min-width:900px){
+.result-body-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 32px; }
+.result-reason-full { grid-column: 1 / -1; }
+    }
+.confidence-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.field-label { color: var(--mid); font-size: 9px; letter-spacing: 2.5px; margin-bottom: 10px; display: block; }
+.confidence-pill { border: 1px solid; border-radius: 6px; padding: 4px 12px; font-size: 11px; font-weight: 800; letter-spacing: 2px; }
+.bar-track { height: 4px; background: #0A1520; border-radius: 2px; margin-bottom: 20px; overflow: hidden; }
+.bar-fill { height: 4px; border-radius: 2px; transition: width .8s cubic-bezier(.22,1,.36,1); }
+.inner-divider { height: 1px; opacity: .25; margin-bottom: 16px; }
+.reason-box { display: flex; gap: 12px; }
+.reason-accent { width: 3px; border-radius: 2px; flex-shrink: 0; opacity: .8; }
+.reason-text { color: #C0D8FF; font-size: 14px; line-height: 22px; flex: 1; }
+.raw-toggle {
+margin-top: 12px; padding: 8px 12px; border: 1px solid var(--border);
+border-radius: 6px; background: transparent; cursor: pointer;
+font-family: 'Courier New', monospace; font-size: 9px; color: var(--muted);
+letter-spacing: 1.5px; transition: all .2s; width: 100%; text-align: left;
+    }
+.raw-toggle:hover { border-color: rgba(0,255,178,.2); color: var(--mid); }
+.raw-output {
+display: none; margin-top: 8px; padding: 12px; background: var(--bg);
+border: 1px solid var(--border); border-radius: 6px; font-size: 11px;
+color: var(--muted); line-height: 18px; white-space: pre-wrap; font-family: 'Courier New', monospace;
+    }
+.result-footer { border-top: 1px solid #0E1E2C; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
+.footer-text { color: var(--muted); font-size: 9px; letter-spacing: 2px; }
+.footer-ts { color: #1A3A50; font-size: 8px; letter-spacing: 1px; }
+/* ── ERROR TOAST ── */
+.error-toast {
+display: none; margin-top: 16px; padding: 12px 16px;
+border: 1px solid #FF3B3B; border-radius: 8px;
+background: rgba(255,59,59,.08); color: #FF3B3B;
+font-size: 10px; letter-spacing: 1px; line-height: 16px;
+    }
+@keyframes fadeIn  { from{opacity:0;} to{opacity:1;} }
+@keyframes slideUp { from{opacity:0;transform:translateY(24px);} to{opacity:1;transform:translateY(0);} }
+  </style>
+</head>
+<body>
+<div class="shell">
+<!-- ══ LEFT SIDEBAR ══ -->
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-name">FACTIFY</div>
+      <div class="sb-logo-sub">◈ AI ANALYSIS ENGINE</div>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-section">
+      <div class="sb-section-label">NAVIGATION</div>
+      <nav class="sb-nav">
+        <a class="sb-nav-item active" href="index.html"><span class="sb-nav-icon">⌂</span> DETECTOR</a>
+        <a class="sb-nav-item" href="news.html"><span class="sb-nav-icon">✈</span> LIVE FEED</a>
+      </nav>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-section">
+      <div class="sb-section-label">SESSION STATS</div>
+      <div class="sb-stats">
+        <div class="sb-stat">
+          <div class="sb-stat-label">ARTICLES SCANNED</div>
+          <div class="sb-stat-value" id="sbScanCount">0</div>
+          <div class="sb-stat-sub">THIS SESSION</div>
+        </div>
+        <div class="sb-stat">
+          <div class="sb-stat-label">VERDICTS ISSUED</div>
+          <div class="sb-stat-value" id="sbVerdictCount">0</div>
+          <div class="sb-stat-sub">TOTAL</div>
+        </div>
+      </div>
+    </div>
+    <div class="sb-divider"></div>
+    <div class="sb-section">
+      <div class="sb-section-label">PRO TIPS</div>
+      <div class="sb-tips">
+        <div class="sb-tip"><b>◈</b> Paste full article for best accuracy</div>
+        <div class="sb-tip"><b>◈</b> Include headline + body together</div>
+        <div class="sb-tip"><b>◈</b> Use sample prompts to test first</div>
+      </div>
+    </div>
+  </aside>
+
+<!-- ══ MAIN ══ -->
+  <main class="main">
+    <div class="status-bar">
+      <div class="status-left">
+        <div class="green-dot"></div>
+        <span class="status-text">SYSTEM ONLINE</span>
+      </div>
+      <div class="status-right">
+        <span class="status-pill">GEMINI v2.5-FLASH</span>
+        <span class="status-text" id="clockDisplay"></span>
+      </div>
+    </div>
+
+    <div class="brand-block">
+      <div class="corner corner-tl"></div><div class="corner corner-tr"></div>
+      <div class="corner corner-bl"></div><div class="corner corner-br"></div>
+      <div class="brand-eyebrow">◈ AI-POWERED ANALYSIS ENGINE</div>
+      <div class="brand-name">FACTIFY</div>
+      <div class="brand-tagline">AI FAKE NEWS DETECTOR</div>
+      <div class="brand-underline"></div>
+      <div class="brand-sub">Real-time Intelligence · Gemini 2.5 · Secure Backend Proxy</div>
+    </div>
+
+    <div class="grid-divider"><div class="grid-line"></div><div class="grid-dot"></div><div class="grid-line"></div></div>
+
+    <div class="input-analyze-row">
+<!-- INPUT -->
+      <div class="input-section">
+        <div class="input-header-row">
+          <span class="section-label">► INPUT NODE</span>
+          <span class="char-count" id="charCount">0 CHARS</span>
+        </div>
+        <div class="input-outer">
+          <div class="scan-line"></div>
+          <textarea id="newsInput" placeholder="PASTE NEWS CONTENT HERE..." oninput="onInput(this)"></textarea>
+        </div>
+        <div class="input-footer">
+          <span class="input-meta">SUPPORTS: HEADLINES · ARTICLES · SOCIAL POSTS · CLAIMS</span>
+          <button class="clear-btn hidden" id="clearBtn" onclick="clearInput()">✕ CLEAR</button>
+        </div>
+        <div class="error-toast" id="errorToast"></div>
+      </div>
+
+<!-- ANALYZE COL -->
+      <div class="analyze-col">
+        <button class="analyze-btn" id="analyzeBtn" disabled onclick="runAnalysis()">
+          <span class="btn-arrow" id="btnArrow">▶</span>
+          <span class="btn-text" id="btnText">RUN ANALYSIS</span>
+        </button>
+        <div class="quick-actions">
+          <div class="qa-title">► SAMPLE PROMPTS</div>
+          <button class="qa-btn" onclick="loadSample('fake')">
+            <span class="qa-btn-label">FAKE NEWS SAMPLE</span>
+            Scientists confirm 5G towers cause COVID-19 by activating nanoparticles in vaccines, leaked WHO report reveals.
+          </button>
+          <button class="qa-btn" onclick="loadSample('real')">
+            <span class="qa-btn-label">REAL NEWS SAMPLE</span>
+            ISRO successfully launched the PSLV-C58 mission, deploying the XPoSat satellite into a 650 km orbit.
+          </button>
+        </div>
+      </div>
+    </div>
+
+<!-- RESULT CARD -->
+    <div class="result-card" id="resultCard">
+      <div class="result-header" id="resultHeader">
+        <div class="result-header-text" id="resultHeaderText"></div>
+      </div>
+      <div class="result-body">
+        <div class="result-body-grid">
+          <div>
+            <div class="confidence-row">
+              <span class="field-label" style="margin-bottom:0">CONFIDENCE LEVEL</span>
+              <div class="confidence-pill" id="confidencePill"></div>
+            </div>
+            <div class="bar-track"><div class="bar-fill" id="barFill" style="width:0%"></div></div>
+          </div>
+          <div class="result-reason-full">
+            <div class="inner-divider" id="innerDivider"></div>
+            <span class="field-label">ANALYSIS</span>
+            <div class="reason-box">
+              <div class="reason-accent" id="reasonAccent"></div>
+              <div class="reason-text" id="reasonText"></div>
+            </div>
+            <button class="raw-toggle" onclick="toggleRaw()" id="rawToggle">▼ VIEW RAW OUTPUT</button>
+            <pre class="raw-output" id="rawOutput"></pre>
+          </div>
+        </div>
+      </div>
+      <div class="result-footer">
+        <span class="footer-text">◈ ANALYSIS COMPLETE · FACTIFY ENGINE</span>
+        <span class="footer-ts" id="resultTs"></span>
+      </div>
+    </div>
+    <div style="height:40px"></div>
+  </main>
+
+<!-- ══ RIGHT PANEL ══ -->
+  <aside class="right-panel">
+    <div class="rp-card">
+      <div class="rp-title">► VERDICT GUIDE</div>
+      <div class="vl-list">
+        <div class="vl-item">
+          <div class="vl-dot" style="background:#00FF87;box-shadow:0 0 6px #00FF87"></div>
+          <div><div class="vl-label" style="color:#00FF87">VERIFIED AUTHENTIC</div><div class="vl-sub">Content aligns with credible sources</div></div>
+        </div>
+        <div class="vl-item">
+          <div class="vl-dot" style="background:#FF3B3B;box-shadow:0 0 6px #FF3B3B"></div>
+          <div><div class="vl-label" style="color:#FF3B3B">MISINFORMATION</div><div class="vl-sub">False or misleading claims detected</div></div>
+        </div>
+        <div class="vl-item">
+          <div class="vl-dot" style="background:#FFB800;box-shadow:0 0 6px #FFB800"></div>
+          <div><div class="vl-label" style="color:#FFB800">INCONCLUSIVE</div><div class="vl-sub">Insufficient data to verify claim</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="rp-card">
+      <div class="rp-title">► HOW IT WORKS</div>
+      <div class="how-list">
+        <div class="how-item"><div class="how-num">1</div><div class="how-text">Paste news content into the input field</div></div>
+        <div class="how-item"><div class="how-num">2</div><div class="how-text">Request hits your secure backend proxy</div></div>
+        <div class="how-item"><div class="how-num">3</div><div class="how-text">Backend rotates keys and calls Gemini API</div></div>
+        <div class="how-item"><div class="how-num">4</div><div class="how-text">Verdict and reasoning returned safely</div></div>
+      </div>
+    </div>
+    <div class="rp-card">
+      <div class="rp-title">► MODEL INFO</div>
+      <div class="mi-list">
+        <div class="mi-row"><span class="mi-key">ENGINE</span><span class="mi-badge">GEMINI 2.5</span></div>
+        <div class="mi-row"><span class="mi-key">VARIANT</span><span class="mi-val">FLASH-LITE</span></div>
+        <div class="mi-row"><span class="mi-key">PROXY</span><span class="mi-val">SECURE BACKEND</span></div>
+        <div class="mi-row"><span class="mi-key">KEY ROTATION</span><span class="mi-val">ROUND-ROBIN ×3</span></div>
+        <div class="mi-row"><span class="mi-key">STATUS</span><span class="mi-val" style="color:#00FF87">● ACTIVE</span></div>
+      </div>
+    </div>
+    <div class="rp-card">
+      <div class="rp-title">► RECENT SCANS</div>
+      <div class="hist-list" id="historyList">
+        <div class="hist-empty" id="historyEmpty">NO SCANS YET</div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- TAB BAR -->
+<nav class="tab-bar">
+  <a class="tab active" href="index.html">
+    <div class="tab-icon-wrap"><span class="tab-icon">⌂</span></div>
+    <span class="tab-label">Factify News Tester</span>
+  </a>
+  <a class="tab" href="news.html">
+    <div class="tab-icon-wrap"><span class="tab-icon">✈</span></div>
+    <span class="tab-label">Genuine News by Factify</span>
+  </a>
+</nav>
+
+<script>
+  // ── CONFIG — point this at your backend ──────────────────────────────────────
+  // During local development: "http://localhost:3001"
+  // After deploying backend:  "https://your-backend-domain.com"
+  const BACKEND_URL = "http://localhost:3001";
+
+  const VERDICT_CONFIG = {
+    Fake:      { color:"#FF3B3B", bgColor:"#1A0A0A", borderColor:"#FF3B3B", icon:"✕", label:"MISINFORMATION DETECTED" },
+    Real:      { color:"#00FF87", bgColor:"#001A0E", borderColor:"#00FF87", icon:"✓", label:"VERIFIED AUTHENTIC" },
+    Uncertain: { color:"#FFB800", bgColor:"#1A1200", borderColor:"#FFB800", icon:"◈", label:"INCONCLUSIVE" },
+  };
+
+  const SCAN_STEPS = [
+    "INITIALIZING ENGINE...",
+    "ROUTING THROUGH PROXY...",
+    "CROSS-REFERENCING SOURCES...",
+    "SCORING CREDIBILITY...",
+    "GENERATING VERDICT...",
+  ];
+
+  const SAMPLES = {
+    fake: "Scientists confirm 5G towers cause COVID-19 by activating nanoparticles in vaccines, leaked WHO report reveals. The document, obtained by whistleblowers, shows a global conspiracy to suppress this information from the public.",
+    real: "ISRO successfully launched the PSLV-C58 mission on January 1, 2024, deploying the XPoSat (X-ray Polarimeter Satellite) into a 650 km low Earth orbit to study cosmic X-ray sources. This marks a significant milestone for Indian space science.",
+  };
+
+  let scanInterval, scanStep = 0, scanCount = 0, verdictCount = 0, rawVisible = false, lastRaw = '';
+
+  // Clock
+  function updateClock() {
+    const n = new Date(), p = x => String(x).padStart(2, '0');
+    document.getElementById('clockDisplay').textContent =
+      `${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())} IST`;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  function onInput(el) {
+    document.getElementById('charCount').textContent = el.value.length + ' CHARS';
+    document.getElementById('clearBtn').classList.toggle('hidden', el.value.length === 0);
+    document.getElementById('analyzeBtn').disabled = !el.value.trim();
+    hideError();
+  }
+
+  function clearInput() {
+    const ta = document.getElementById('newsInput');
+    ta.value = ''; onInput(ta);
+    document.getElementById('resultCard').style.display = 'none';
+    hideError();
+  }
+
+  function loadSample(t) {
+    const ta = document.getElementById('newsInput');
+    ta.value = SAMPLES[t]; onInput(ta); ta.focus();
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorToast');
+    el.textContent = '⚠  ' + msg;
+    el.style.display = 'block';
+  }
+
+  function hideError() {
+    document.getElementById('errorToast').style.display = 'none';
+  }
+
+  function parseVerdict(t) {
+    if (/\bfake\b/i.test(t))      return 'Fake';
+    if (/\breal\b/i.test(t))      return 'Real';
+    if (/\buncertain\b/i.test(t)) return 'Uncertain';
+    return null;
+  }
+
+  function parseSection(t, label) {
+    const m = t.match(new RegExp(`${label}:\\s*(.+?)(?=\\n[A-Z]|$)`, 'si'));
+    return m ? m[1].trim() : '';
+  }
+
+  function setLoading(on) {
+    const btn   = document.getElementById('analyzeBtn');
+    const arrow = document.getElementById('btnArrow');
+    const txt   = document.getElementById('btnText');
+    btn.disabled = on;
+    if (on) {
+      arrow.style.display = 'none'; txt.style.color = '#00FFB2';
+      btn.style.background = 'transparent'; btn.style.borderColor = '#0E2030';
+      btn.style.boxShadow = 'none'; btn.style.cursor = 'wait';
+      scanStep = 0; txt.textContent = SCAN_STEPS[0];
+      scanInterval = setInterval(() => {
+        scanStep = (scanStep + 1) % SCAN_STEPS.length;
+        txt.textContent = SCAN_STEPS[scanStep];
+      }, 700);
+    } else {
+      clearInterval(scanInterval);
+      arrow.style.display = ''; txt.style.color = '';
+      btn.style.background = ''; btn.style.borderColor = '';
+      btn.style.boxShadow = ''; btn.style.cursor = '';
+      btn.disabled = !document.getElementById('newsInput').value.trim();
+      txt.textContent = 'RUN ANALYSIS';
+    }
+  }
+
+  function toggleRaw() {
+    rawVisible = !rawVisible;
+    document.getElementById('rawOutput').style.display = rawVisible ? 'block' : 'none';
+    document.getElementById('rawToggle').textContent = rawVisible ? '▲ HIDE RAW OUTPUT' : '▼ VIEW RAW OUTPUT';
+  }
+
+  function addHistory(snippet, verdict) {
+    const cfg   = VERDICT_CONFIG[verdict];
+    const empty = document.getElementById('historyEmpty');
+    if (empty) empty.remove();
+    const list = document.getElementById('historyList');
+    const item = document.createElement('div');
+    item.className = 'hist-item';
+    item.innerHTML = `
+      <div class="hist-dot" style="background:${cfg.color};box-shadow:0 0 4px ${cfg.color}"></div>
+      <span class="hist-text">${snippet.slice(0, 38)}...</span>
+      <span class="hist-verdict" style="color:${cfg.color}">${verdict.toUpperCase()}</span>`;
+    list.insertBefore(item, list.firstChild);
+    if (list.children.length > 5) list.removeChild(list.lastChild);
+  }
+
+  async function runAnalysis() {
+    const newsText = document.getElementById('newsInput').value.trim();
+    if (!newsText) return;
+
+    setLoading(true);
+    hideError();
+    rawVisible = false;
+    document.getElementById('rawOutput').style.display = 'none';
+    document.getElementById('rawToggle').textContent = '▼ VIEW RAW OUTPUT';
+    document.getElementById('resultCard').style.display = 'none';
+    scanCount++;
+    document.getElementById('sbScanCount').textContent = scanCount;
+
+    try {
+      // ── Calls YOUR backend, not Gemini directly ──────────────────────────
+      const res = await fetch(`${BACKEND_URL}/api/analyze`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ text: newsText }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error ${res.status}`);
+      }
+
+      const data = await res.json();
+      lastRaw    = data.result || '';
+      showResult(lastRaw, newsText);
+
+    } catch (e) {
+      console.error(e);
+      showError(
+        e.message.includes('Failed to fetch')
+          ? 'Cannot reach backend. Make sure the server is running on ' + BACKEND_URL
+          : e.message
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function showResult(text, inputText) {
+    const verdict = parseVerdict(text);
+    if (!verdict) return;
+    const cfg = VERDICT_CONFIG[verdict];
+    const confidence = parseSection(text, 'Confidence');
+    const reason     = parseSection(text, 'Reason');
+
+    const card = document.getElementById('resultCard');
+    card.style.borderColor     = cfg.borderColor;
+    card.style.backgroundColor = cfg.bgColor;
+
+    document.getElementById('resultHeader').style.backgroundColor = cfg.color;
+    document.getElementById('resultHeaderText').textContent        = cfg.icon + '  ' + cfg.label;
+
+    const pill = document.getElementById('confidencePill');
+    pill.textContent         = confidence.toUpperCase();
+    pill.style.borderColor   = cfg.color;
+    pill.style.color         = cfg.color;
+
+    const confLow = confidence.toLowerCase();
+    const bw = confLow === 'high' ? '90%' : confLow === 'medium' ? '55%' : '25%';
+    const bf = document.getElementById('barFill');
+    bf.style.backgroundColor = cfg.color;
+    bf.style.width = '0%';
+    setTimeout(() => { bf.style.width = bw; }, 80);
+
+    document.getElementById('innerDivider').style.backgroundColor = cfg.color;
+    document.getElementById('reasonAccent').style.backgroundColor = cfg.color;
+    document.getElementById('reasonText').textContent             = reason || text;
+    document.getElementById('rawOutput').textContent              = lastRaw;
+
+    const n = new Date(), p = x => String(x).padStart(2, '0');
+    document.getElementById('resultTs').textContent =
+      `SCANNED AT ${p(n.getHours())}:${p(n.getMinutes())}:${p(n.getSeconds())}`;
+
+    card.style.display   = 'block';
+    card.style.animation = 'none';
+    void card.offsetHeight;
+    card.style.animation = '';
+
+    verdictCount++;
+    document.getElementById('sbVerdictCount').textContent = verdictCount;
+    addHistory(inputText, verdict);
+  }
+</script>
+</body>
+</html>
